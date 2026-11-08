@@ -38,6 +38,11 @@ public class Taskitem {
     @Column(name = "subject_id", nullable = false)
     private Integer subjectId;
 
+    // Relación con el usuario autenticado
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -76,4 +81,9 @@ public class Taskitem {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    //Getter y Setters para el Usuario
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
+
 }
