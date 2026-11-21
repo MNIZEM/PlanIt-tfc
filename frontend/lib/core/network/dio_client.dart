@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:planit_app/core/constants/api_constants.dart';
+import 'package:planit_app/core/storage/token_storage.dart';
 
 class DioClient {
   late final Dio _dio;
@@ -17,11 +18,15 @@ class DioClient {
       ),
     );
 
-    // Añadimos interceptores para logs o manejo de tokens JWT en el futuro
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-
+        onRequest: (options, handler) async {
+          if (!options.path.contains('/auth/login')) {
+            final token = await TokenStorage.getToken();
+            if (token != null && token.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $token';
+            }
+          }
           return handler.next(options);
         },
         onError: (DioException e, handler) {
