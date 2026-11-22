@@ -7,6 +7,8 @@ import org.example.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -55,11 +57,10 @@ public class TaskitemController {
         User user = getAuthenticatedUser(authentication);
 
         Taskitem task = taskitemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Tarea no encontrada con ID: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tarea no encontrada con ID: " + id));
 
-        // Validar que la tarea pertenezca al usuario autenticado
         if (!task.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("No tienes permiso para modificar esta tarea.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permiso para modificar esta tarea.");
         }
 
         task.setTitle(taskDetails.getTitle());
@@ -81,11 +82,10 @@ public class TaskitemController {
         User user = getAuthenticatedUser(authentication);
 
         Taskitem task = taskitemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Tarea no encontrada con ID: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tarea no encontrada con ID: " + id));
 
-        // Validar que la tarea pertenezca al usuario autenticado
         if (!task.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("No tienes permiso para eliminar esta tarea.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permiso para eliminar esta tarea.");
         }
 
         taskitemRepository.delete(task);

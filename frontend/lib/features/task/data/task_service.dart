@@ -27,6 +27,32 @@ class TaskItem {
     required this.subjectId,
   });
 
+  TaskItem copyWith({
+    int? id,
+    String? title,
+    String? description,
+    String? taskType,
+    DateTime? startDate,
+    DateTime? dueDate,
+    String? reminderFrequency,
+    bool? reminderActive,
+    bool? completed,
+    int? subjectId,
+  }) {
+    return TaskItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      taskType: taskType ?? this.taskType,
+      startDate: startDate ?? this.startDate,
+      dueDate: dueDate ?? this.dueDate,
+      reminderFrequency: reminderFrequency ?? this.reminderFrequency,
+      reminderActive: reminderActive ?? this.reminderActive,
+      completed: completed ?? this.completed,
+      subjectId: subjectId ?? this.subjectId,
+    );
+  }
+
   factory TaskItem.fromJson(Map<String, dynamic> json) {
     return TaskItem(
       id: json['id'] as int?,
@@ -65,6 +91,8 @@ class TaskItem {
       'subjectId': subjectId,
     };
   }
+
+  Map<String, dynamic> toUpdateJson() => toCreateJson();
 }
 
 class TaskService {
@@ -87,5 +115,30 @@ class TaskService {
     final response = await _dio.post(_endpoint, data: task.toCreateJson());
     debugPrint('Tarea creada en backend: ${response.data}');
     return TaskItem.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<TaskItem> updateTask(TaskItem task) async {
+    if (task.id == null) {
+      throw ArgumentError('No se puede actualizar una tarea sin id');
+    }
+    final response = await _dio.put(
+      '$_endpoint/${task.id}',
+      data: task.toUpdateJson(),
+    );
+    debugPrint('Tarea actualizada en backend: ${response.data}');
+    return TaskItem.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteTask(int id) async {
+    try {
+      await _dio.delete(
+        '$_endpoint/$id',
+        options: Options(responseType: ResponseType.plain),
+      );
+      debugPrint('Tarea eliminada en backend: id=$id');
+    } on DioException catch (e) {
+      print('Error al eliminar tarea: ${e.response?.statusCode} - ${e.response?.data}');
+      rethrow;
+    }
   }
 }
