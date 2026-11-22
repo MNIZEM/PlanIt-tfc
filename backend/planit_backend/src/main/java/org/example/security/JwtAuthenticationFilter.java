@@ -37,7 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 username = jwtUtil.extractUsername(jwt);
             } catch (Exception e) {
-
+                System.out.println("Error al leer JWT: " + e.getMessage());
             }
         }
         // Si tenemos el usuario pero aún no está autenticado en el contexto de seguridad

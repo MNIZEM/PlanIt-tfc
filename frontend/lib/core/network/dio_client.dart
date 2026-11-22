@@ -23,6 +23,8 @@ class DioClient {
         onRequest: (options, handler) async {
           if (!options.path.contains('/auth/login')) {
             final token = await TokenStorage.getToken();
+            print('URL: ${options.uri}');
+            print('Token leído: ${token != null && token.isNotEmpty ? "SÍ (${token.length} chars)" : "NO / VACÍO"}');
             if (token != null && token.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $token';
             }
