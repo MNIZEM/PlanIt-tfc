@@ -57,7 +57,7 @@ class SubjectService {
   Future<void> deleteSubject(int id) async {
     try {
       await _dio.delete(
-        '/api/subjects/$id',
+        '/subjects/$id',
         options: Options(responseType: ResponseType.plain),
       );
       print('Asignatura eliminada en backend: id=$id');

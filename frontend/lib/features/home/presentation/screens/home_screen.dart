@@ -30,9 +30,11 @@ Widget _construirTileTarea({
   required String subtitulo,
   required Future<void> Function(TaskItem) onToggleCompletada,
   required Future<void> Function(TaskItem) onEliminarTarea,
+  required VoidCallback onVerDetalle,
 }) {
   return Card(
     child: ListTile(
+      onTap: onVerDetalle,
       leading: Checkbox(
         value: tarea.completed,
         onChanged: (_) => onToggleCompletada(tarea),
@@ -53,6 +55,62 @@ Widget _construirTileTarea({
         onPressed: () => onEliminarTarea(tarea),
       ),
     ),
+  );
+}
+Future<void> _mostrarDetalleTarea({
+  required BuildContext context,
+  required TaskItem tarea,
+  required List<SubjectItem> asignaturas,
+}) async {
+  String nombreAsignatura = 'Sin asignatura';
+  for (final s in asignaturas) {
+    if (s.id == tarea.subjectId && s.name.isNotEmpty) {
+      nombreAsignatura = s.name;
+      break;
+    }
+  }
+
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: Text(tarea.title),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tipo: ${tarea.taskType}'),
+              const SizedBox(height: 6),
+              Text('Asignatura: $nombreAsignatura'),
+              const SizedBox(height: 6),
+              Text('Inicio: ${_formatearFechaCorta(tarea.startDate)}'),
+              const SizedBox(height: 6),
+              Text('Vencimiento: ${_formatearFechaCorta(tarea.dueDate)}'),
+              const SizedBox(height: 6),
+              Text('Estado: ${tarea.completed ? 'Completada' : 'Pendiente'}'),
+              const SizedBox(height: 10),
+              const Text(
+                'Descripción:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tarea.description != null && tarea.description!.trim().isNotEmpty
+                    ? tarea.description!
+                    : 'Sin descripción',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -241,7 +299,9 @@ class PantallaGestionAsignaturas extends StatefulWidget {
   @override
   State<PantallaGestionAsignaturas> createState() =>
       _PantallaGestionAsignaturasState();
+
 }
+
 
 class _PantallaGestionAsignaturasState
     extends State<PantallaGestionAsignaturas> {
@@ -251,6 +311,35 @@ class _PantallaGestionAsignaturasState
   void initState() {
     super.initState();
     _asignaturas = List<SubjectItem>.from(widget.asignaturasIniciales);
+  }
+  Future<void> _eliminarAsignatura(SubjectItem asignatura) async {
+    final id = asignatura.id;
+    if (id == null) return;
+
+    try {
+      await widget.subjectService.deleteSubject(id);
+      if (!mounted) return;
+      setState(() {
+        _asignaturas.removeWhere((s) => s.id == id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Asignatura eliminada')),
+      );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No se pudo eliminar (${e.response?.statusCode ?? 'red'})',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo eliminar la asignatura')),
+      );
+    }
   }
 
   Future<void> _abrirDialogoNuevaAsignatura() async {
@@ -350,6 +439,11 @@ class _PantallaGestionAsignaturasState
               child: ListTile(
                 leading: const Icon(Icons.book_outlined),
                 title: Text(asignatura.name),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: 'Eliminar asignatura',
+                  onPressed: () => _eliminarAsignatura(asignatura),
+                ),
               ),
             );
           },
@@ -725,6 +819,11 @@ class _InicioTab extends StatelessWidget {
                       subtitulo: subtitulo,
                       onToggleCompletada: onToggleCompletada,
                       onEliminarTarea: onEliminarTarea,
+                      onVerDetalle: () => _mostrarDetalleTarea(
+                        context: context,
+                        tarea: tarea,
+                        asignaturas: asignaturas,
+                      ),
                     );
                   },
                 ),
@@ -833,6 +932,11 @@ class _CalendarioTabState extends State<_CalendarioTab> {
                               await widget.onEliminarTarea(t);
                               if (innerCtx.mounted) setSheetState(() {});
                             },
+                            onVerDetalle: () => _mostrarDetalleTarea(
+                              context: context,
+                              tarea: tarea,
+                              asignaturas: widget.asignaturas,
+                            ),
                           );
                         },
                       ),
@@ -933,6 +1037,11 @@ class _TodosEventosTab extends StatelessWidget {
           subtitulo: subtitulo,
           onToggleCompletada: onToggleCompletada,
           onEliminarTarea: onEliminarTarea,
+          onVerDetalle: () => _mostrarDetalleTarea(
+            context: context,
+            tarea: t,
+            asignaturas: const [],
+          ),
         );
       },
     );
