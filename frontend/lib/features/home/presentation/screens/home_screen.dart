@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:planit_app/core/storage/token_storage.dart';
 import 'package:planit_app/features/subject/data/subject_service.dart';
 import 'package:planit_app/features/task/data/task_service.dart';
+import 'package:planit_app/core/notifications/notification_service.dart';
+
 
 String _formatearFechaCorta(DateTime fecha) {
   final dia = fecha.day.toString().padLeft(2, '0');
@@ -126,7 +128,11 @@ Future<void> mostrarDialogoNuevaTarea({
   int? asignaturaSeleccionadaId =
   asignaturas.isNotEmpty ? asignaturas.first.id : null;
   String tipoSeleccionado = 'tarea';
-  DateTime fechaSeleccionada =
+  String frecuenciaSeleccionada = 'cada_hora';
+  bool recordatorioActivo = true;
+
+  DateTime fechaInicioNotificaciones = DateTime.now().add(const Duration(minutes: 1));
+  DateTime fechaFinSeleccionada =
       fechaInicial ?? DateTime.now().add(const Duration(hours: 2));
   bool guardando = false;
 
@@ -198,14 +204,16 @@ Future<void> mostrarDialogoNuevaTarea({
                     ),
                     const SizedBox(height: 12),
                   ],
+                  // Fecha fin / vencimiento
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.schedule),
-                    title: Text(_formatearFechaCorta(fechaSeleccionada)),
+                    leading: const Icon(Icons.event_available),
+                    title: const Text('Fecha límite / fin'),
+                    subtitle: Text(_formatearFechaCorta(fechaFinSeleccionada)),
                     onTap: () async {
                       final fecha = await showDatePicker(
                         context: dialogCtx,
-                        initialDate: fechaSeleccionada,
+                        initialDate: fechaFinSeleccionada,
                         firstDate:
                         DateTime.now().subtract(const Duration(days: 365)),
                         lastDate:
@@ -214,11 +222,11 @@ Future<void> mostrarDialogoNuevaTarea({
                       if (fecha == null || !dialogCtx.mounted) return;
                       final hora = await showTimePicker(
                         context: dialogCtx,
-                        initialTime: TimeOfDay.fromDateTime(fechaSeleccionada),
+                        initialTime: TimeOfDay.fromDateTime(fechaFinSeleccionada),
                       );
                       if (hora == null || !dialogCtx.mounted) return;
                       setDialogState(() {
-                        fechaSeleccionada = DateTime(
+                        fechaFinSeleccionada = DateTime(
                           fecha.year,
                           fecha.month,
                           fecha.day,
@@ -228,6 +236,79 @@ Future<void> mostrarDialogoNuevaTarea({
                       });
                     },
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Activar recordatorios'),
+                    value: recordatorioActivo,
+                    onChanged: (val) {
+                      setDialogState(() => recordatorioActivo = val);
+                    },
+                  ),
+                  if (recordatorioActivo) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.notifications_active_outlined),
+                      title: const Text('Avisar desde'),
+                      subtitle:
+                      Text(_formatearFechaCorta(fechaInicioNotificaciones)),
+                      onTap: () async {
+                        final fecha = await showDatePicker(
+                          context: dialogCtx,
+                          initialDate: fechaInicioNotificaciones,
+                          firstDate:
+                          DateTime.now().subtract(const Duration(days: 1)),
+                          lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 3)),
+                        );
+                        if (fecha == null || !dialogCtx.mounted) return;
+                        final hora = await showTimePicker(
+                          context: dialogCtx,
+                          initialTime:
+                          TimeOfDay.fromDateTime(fechaInicioNotificaciones),
+                        );
+                        if (hora == null || !dialogCtx.mounted) return;
+                        setDialogState(() {
+                          fechaInicioNotificaciones = DateTime(
+                            fecha.year,
+                            fecha.month,
+                            fecha.day,
+                            hora.hour,
+                            hora.minute,
+                          );
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: frecuenciaSeleccionada,
+                      decoration: const InputDecoration(
+                        labelText: 'Frecuencia de notificación',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'cada_30_min',
+                          child: Text('Cada 30 minutos'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'cada_hora',
+                          child: Text('Cada hora'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'cada_6_horas',
+                          child: Text('Cada 6 horas'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'diario',
+                          child: Text('Una vez al día'),
+                        ),
+                      ],
+                      onChanged: (valor) {
+                        if (valor != null) {
+                          setDialogState(() => frecuenciaSeleccionada = valor);
+                        }
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -246,6 +327,19 @@ Future<void> mostrarDialogoNuevaTarea({
                     return;
                   }
 
+                  if (recordatorioActivo &&
+                      !fechaInicioNotificaciones
+                          .isBefore(fechaFinSeleccionada)) {
+                    ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'La fecha de inicio de avisos debe ser anterior al fin de la tarea.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
                   setDialogState(() => guardando = true);
                   try {
                     final nueva = TaskItem(
@@ -254,12 +348,23 @@ Future<void> mostrarDialogoNuevaTarea({
                           ? null
                           : descripcionController.text.trim(),
                       taskType: tipoSeleccionado,
-                      startDate: fechaSeleccionada,
-                      dueDate:
-                      fechaSeleccionada.add(const Duration(hours: 1)),
+                      startDate: fechaInicioNotificaciones,
+                      dueDate: fechaFinSeleccionada,
+                      reminderFrequency: frecuenciaSeleccionada,
+                      reminderActive: recordatorioActivo,
                       subjectId: subjectId,
                     );
                     final creada = await taskService.createTask(nueva);
+
+                    if (creada.reminderActive) {
+                      await NotificationService.instance
+                          .programarNotificacionesTarea(
+                        tarea: creada,
+                        fechaInicioPersonalizada:
+                        fechaInicioNotificaciones,
+                      );
+                    }
+
                     onTareaCreada(creada);
                     if (dialogCtx.mounted) {
                       Navigator.pop(dialogCtx);
@@ -538,8 +643,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final candidata = tarea.copyWith(completed: !tarea.completed);
     try {
       final guardada = await _taskService.updateTask(candidata);
-      if (!mounted) return;
-      _reemplazarTarea(guardada);
+      if (guardada.completed) {
+        await NotificationService.instance.cancelarNotificacionesTarea(guardada.id!);
+      } else {
+        await NotificationService.instance.programarNotificacionesTarea(tarea: guardada);
+      }
     } on DioException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -556,6 +664,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (tarea.id == null) return;
     try {
       await _taskService.deleteTask(tarea.id!);
+      await NotificationService.instance.cancelarNotificacionesTarea(tarea.id!);
       if (!mounted) return;
       setState(() {
         _tareas.removeWhere((t) => t.id == tarea.id);
